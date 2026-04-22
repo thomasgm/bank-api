@@ -34,54 +34,70 @@ public async Task<IActionResult> CriarConta([FromBody] CriarContaRequest request
 [HttpPost("deposito")]
 public async Task<IActionResult> Deposito([FromBody] DepositoRequest request)
 {
-    if (request.Valor <= 0)
+    if (request == null || request.Valor <= 0)
         return BadRequest("Valor inválido");
 
     var conta = await _context.Contas.FindAsync(request.ContaId);
 
     if (conta == null)
-        return NotFound();
+        return NotFound($"Conta {request.ContaId} não encontrada");
 
-    conta.Saldo += request.Valor;
-    var transacao = new Transacao
+    await using var transaction = await _context.Database.BeginTransactionAsync();
+    try
     {
-        ContaId = conta.Id,
-        Valor = request.Valor,
-        Tipo = TipoTransacao.Deposito
-    };
-    _context.Transacoes.Add(transacao);
-
-    await _context.SaveChangesAsync();
-
-    return Ok(conta);
+         conta.Saldo += request.Valor;
+        var transacao = new Transacao
+        {
+            ContaId = conta.Id,
+            Valor = request.Valor,
+            Tipo = TipoTransacao.Deposito,
+            Data = DateTime.UtcNow
+        };
+        _context.Transacoes.Add(transacao);
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return Ok(conta);
+    }
+    catch
+    {
+        await transaction.RollbackAsync();
+        return StatusCode(500, "Erro ao processar depósito");
+    }
 }
 [HttpPost("saque")]
 public async Task<IActionResult> Saque([FromBody] SaqueRequest request)
 {
+    if (request == null || request.Valor <= 0)
+        return BadRequest("Valor inválido");
+
     var conta = await _context.Contas.FindAsync(request.ContaId);
 
     if (conta == null)
-        return NotFound();
-
-    if (request.Valor <= 0)
-        return BadRequest("Valor inválido");
+        return NotFound($"Conta {request.ContaId} não encontrada");
 
     if (conta.Saldo < request.Valor)
         return BadRequest("Saldo insuficiente");
 
-    conta.Saldo -= request.Valor;
 
-    var transacao = new Transacao
+    await using var transaction = await _context.Database.BeginTransactionAsync();
+    try {
+        conta.Saldo -= request.Valor;
+        var transacao = new Transacao
+        {
+            ContaId = conta.Id,
+            Valor = request.Valor,
+            Tipo = TipoTransacao.Saque,
+            Data = DateTime.UtcNow
+        };
+        _context.Transacoes.Add(transacao);
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return Ok(conta);
+    } catch
     {
-        ContaId = conta.Id,
-        Valor = request.Valor,
-        Tipo = TipoTransacao.Saque
-    };
-    _context.Transacoes.Add(transacao);
-
-    await _context.SaveChangesAsync();
-
-    return Ok(conta);
+        await transaction.RollbackAsync();
+        return StatusCode(500, "Erro ao processar saque");
+    }
 }
 
 [HttpGet("{contaId}/extrato")]
