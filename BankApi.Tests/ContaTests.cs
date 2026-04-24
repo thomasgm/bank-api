@@ -28,11 +28,10 @@ public class ContaTests
     [Fact]
     public async Task Deposito_nao_Deve_Aceitar_Valor_Negativo()
     {
-        var conta = new Conta { Saldo = 100 };
-
-        conta.Saldo += -50;
-
-        Assert.Equal(100, conta.Saldo);
+        var conta = new Conta();
+        conta.Depositar(100); // Saldo inicial via método
+        // Agora o teste verifica se o método LANÇA erro ao tentar valor negativo
+        Assert.Throws<ArgumentException>(() => conta.Depositar(-50));
     }
 
      [Fact]

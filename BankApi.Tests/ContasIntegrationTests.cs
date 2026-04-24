@@ -1,6 +1,8 @@
 using Xunit;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks; 
+using Microsoft.EntityFrameworkCore.Diagnostics;
+
 
 public class ContasIntegrationTests
 {
@@ -10,6 +12,7 @@ public class ContasIntegrationTests
         // Arrange: Criar banco em memória para o teste
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(databaseName: "TesteDeposito")
+            .ConfigureWarnings(x => x.Ignore(InMemoryEventId.TransactionIgnoredWarning)) // <--- adicionado pra ignorar warning de transação
             .Options;
 
         using var context = new AppDbContext(options);
